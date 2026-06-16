@@ -158,6 +158,7 @@ async def actor_profile_display(req):
         grid_html += '</div>'
 
     # 🎭 CSS और JS टैब इंजन (Zero Server Interaction)
+    # f-string पार्सिंग कॉन्फ्लिक्ट से बचने के लिए कर्ली ब्रेसेस को डबल {{}} कर दिया गया है
     tab_engine_ui = f'''
     <style>
         .actor-tab-bar {{ display: flex; gap: 10px; border-bottom: 2px solid var(--border); margin-bottom: 25px; }}
@@ -207,8 +208,15 @@ async def actor_profile_display(req):
 
     <script>
         function switchActorTab(evt, tabId) {
-            document.querySelectorAll('.actor-panel').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.actor-tab').forEach(t => t.classList.remove('active'));
+            var panels = document.querySelectorAll('.actor-panel');
+            for (var i = 0; i < panels.length; i++) {
+                panels[i].classList.remove('active');
+            }
+            
+            var tabs = document.querySelectorAll('.actor-tab');
+            for (var j = 0; j < tabs.length; j++) {
+                tabs[j].classList.remove('active');
+            }
             
             document.getElementById(tabId).classList.add('active');
             evt.currentTarget.classList.add('active');
