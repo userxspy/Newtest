@@ -269,7 +269,7 @@ async def actor_profile_display(req):
         <div id="tab-video" class="actor-panel">
             <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; align-items:center;">
                 <div style="flex:1; min-width:200px; display:flex; background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:0 12px; align-items:center;">
-                    <input type="text" id="actor_movie_q" value="{html.escape(actor_name)}" placeholder="Search inside actor movies..." style="width:100%; background:transparent; border:none; padding:10px 0; color:var(--text); outline:none; font-size:14px; font-weight:600;">
+                    <input type="text" id="actor_movie_q" value="" placeholder="Search inside actor movies..." style="width:100%; background:transparent; border:none; padding:10px 0; color:var(--text); outline:none; font-size:14px; font-weight:600;">
                 </div>
                 <select id="actor_col_sel" onchange="resetActorSearchPage()" style="background:var(--bg3); color:var(--text); border:1px solid var(--border); padding:10px 14px; border-radius:8px; font-weight:700; outline:none; cursor:pointer;">
                     <option value="all">📂 All Collections</option>
@@ -425,15 +425,16 @@ async def api_actor_search_handler(req):
     
     tags_list = actor.get("tags", [])
     
-    # ✅ FIX COMPONENT SYNCHRONIZATION: 
-    # आपके database/ia_filterdb.py के फंक्शन 'get_actor_search_results' का दूसरा पैरामीटर 'tags_list' है।
-    # जब कस्टम सर्च खाली होगी, तो हम एक्टर का नाम और उसके सारे टैग्स एरे दोनों को भेजेंगे ताकि मास्टर ओरिएंटेड Regex इंजन सही काम करे।
+    # ✅ ABSOLUTE FIX: अब एक्टर का मुख्य नाम पूरी तरह बाईपास (इग्नोर) हो जाएगा।
+    # अगर इनपुट बॉक्स खाली है, तो 'search_query' को एकदम ब्लैंक "" भेजा जाएगा, 
+    # जिससे ia_filterdb का कोर 'get_actor_search_results' इंजन केवल और केवल 'tags_list' (जैसे: Open, Night) को ही सर्च करेगा।
     if not q_custom:
-        search_query = actor["name"]
+        search_query = ""
         passing_tags = tags_list
     else:
+        # अगर यूज़र ने सर्च बॉक्स में खुद कुछ टाइप किया है, तो उस टाइप की हुई वैल्यू के साथ-साथ टैग्स को सिंक रखेंगे।
         search_query = q_custom
-        passing_tags = tags_list  # कस्टम क्वेरी होने पर भी टैग्स साथ में सिंक रहेंगे ताकि परिणाम कभी खाली न मिलें!
+        passing_tags = tags_list
     
     lim = 21
     
