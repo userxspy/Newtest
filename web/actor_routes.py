@@ -151,7 +151,11 @@ async def get_actor_photo(req):
         
         if img_index is not None:
             idx = int(img_index)
-            raw_url = doc.get("gallery", [])[idx]
+            gallery = doc.get("gallery", [])
+            # ✅ FIX: gallery index out of range पर 404 दो, crash नहीं
+            if idx < 0 or idx >= len(gallery):
+                return web.Response(status=404)
+            raw_url = gallery[idx]
             headers = {"Cache-Control": "public, max-age=31536000, immutable", "Content-Disposition": 'inline; filename="photo.jpg"'}
         else:
             raw_url = doc.get("photo_url")
@@ -772,8 +776,9 @@ async def api_actor_update_avatar(req):
             
         tg_photo_id = msg.photo.sizes[-1].file_id if hasattr(msg.photo, "sizes") and msg.photo.sizes else msg.photo.file_id
         
-        await actors.update_one({"_id": ObjectId(actor_id)}, {"$set": {"photo_url": f"TG_ID:{tg_photo_id}", "photo_updated_at": int(time.time())}})
-        return web.json_response({"success": True, "photo_updated_at": int(time.time())})
+        new_ts = int(time.time())
+        await actors.update_one({"_id": ObjectId(actor_id)}, {"$set": {"photo_url": f"TG_ID:{tg_photo_id}", "photo_updated_at": new_ts}})
+        return web.json_response({"success": True, "photo_updated_at": new_ts})
     except Exception as e:
         return web.json_response({"success": False, "error": str(e)})
 
@@ -820,6 +825,10 @@ async def api_actor_gallery_delete(req):
         body = await req.json()
         actor_id = body.get("actor_id")
         idx = body.get("index")
+        
+        # ✅ FIX: idx None या गलत type हो तो crash से बचाव
+        if actor_id is None or idx is None or not isinstance(idx, int):
+            return web.json_response({"success": False, "error": "Invalid parameters"})
         
         actor = await actors.find_one({"_id": ObjectId(actor_id)})
         if not actor or "gallery" not in actor:
