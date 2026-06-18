@@ -48,7 +48,6 @@ async def actors_directory_page(req):
         .pg-btn:disabled {{ opacity:0.4; cursor:not-allowed; }}
         .pg-info {{ color:var(--text); font-weight:800; font-size:14px; background:var(--bg3); padding:6px 14px; border-radius:6px; border:1px solid var(--border); }}
         
-        /* 🔥 NEW ANIMATION CSS ADDED HERE 🔥 */
         .act-card {{ background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; transition:transform 0.2s, border-color 0.2s, box-shadow 0.2s; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,0.2); }}
         .act-card:hover {{ transform:translateY(-6px); border-color:rgba(229,9,20,0.6); box-shadow:0 8px 22px rgba(229,9,20,0.25); }}
         .act-card:active {{ transform:scale(0.95); transition:transform 0.1s; }}
@@ -91,7 +90,6 @@ async def actors_directory_page(req):
         cat = a.get("category", "actor")
         i = "🎭" if cat == "actor" else "📱" if cat == "app" else "🌐"
         v = int(a.get("photo_updated_at") or a.get("created_at") or 0)
-        # ✅ Inline style removed from img and act-poster class added
         act_items += f'<div class="act-card" onclick="window.location.href=\'/actor/{str(a["_id"])}\'"><div style="position:relative; padding-top:135%; background:var(--bg3); overflow:hidden;"><img src="/api/actor/photo?id={str(a["_id"])}&v={v}" class="act-poster" loading="lazy"><div style="position:absolute; top:8px; left:8px; background:rgba(0,0,0,0.8); border:1px solid rgba(255,255,255,0.1); color:#fff; font-size:9px; padding:4px 8px; border-radius:4px; font-weight:800; backdrop-filter:blur(4px); z-index:2;">{i} {cat.capitalize()}</div></div><div style="padding:10px; text-align:center;"><div style="font-size:13px; font-weight:800; color:var(--text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">{html.escape(a.get("name", ""))}</div></div></div>'
     
     initial_grid = f'<div id="dir_grid_container" class="dir-grid">{act_items}</div>' if all_actors else '<div id="dir_grid_container" style="color:var(--muted); text-align:center; padding:60px 20px;">📇 No profiles found.</div>'
@@ -109,10 +107,27 @@ async def actors_directory_page(req):
     var dirOffset = 0; var dirLimit = 20; var dirPage = 1;
     var hasNext = {has_nxt_str};
     var currentCat = 'all'; var currentMode = 'poster';
-    
     var lastQ = "", lastCat = "all", lastMode = "poster", lastOffset = 0;
     
-    document.addEventListener("DOMContentLoaded", () => {{ updatePgUI(); }});
+    document.addEventListener("DOMContentLoaded", () => {{ 
+        // 🔥 MAGIC: Load saved pagination state from browser SessionStorage! 🔥
+        if(sessionStorage.getItem('ff_dir_state')) {{
+            document.getElementById('dir_q').value = sessionStorage.getItem('ff_dir_q') || "";
+            currentCat = sessionStorage.getItem('ff_dir_cat') || "all";
+            currentMode = sessionStorage.getItem('ff_dir_mode') || "poster";
+            dirOffset = parseInt(sessionStorage.getItem('ff_dir_off') || "0");
+            dirPage = parseInt(sessionStorage.getItem('ff_dir_page') || "1");
+            
+            const catMap = {{'all':'📂 All', 'actor':'🎭 Actor', 'app':'📱 App', 'website':'🌐 Website'}};
+            const modeMap = {{'poster':'🖼️ Poster', 'text':'📄 Text'}};
+            document.getElementById('dir_cat_lbl').innerText = catMap[currentCat] || '📂 All';
+            document.getElementById('dir_mode_lbl').innerText = modeMap[currentMode] || '🖼️ Poster';
+            
+            searchDirectory(true); // Restore exactly where the user left off!
+        }} else {{
+            updatePgUI(); 
+        }}
+    }});
 
     function closeAllDirCDD() {{ document.getElementById('dir_cat_menu').style.display='none'; document.getElementById('dir_mode_menu').style.display='none'; }}
     document.addEventListener('click', closeAllDirCDD);
@@ -128,15 +143,25 @@ async def actors_directory_page(req):
     function pickDirCat(val, lbl, e) {{ e.stopPropagation(); currentCat = val; document.getElementById('dir_cat_lbl').innerText = lbl; closeAllDirCDD(); resetDir(); searchDirectory(); }}
     function pickDirMode(val, lbl, e) {{ e.stopPropagation(); currentMode = val; document.getElementById('dir_mode_lbl').innerText = lbl; closeAllDirCDD(); resetDir(); searchDirectory(); }}
 
-    async function searchDirectory() {{
+    async function searchDirectory(forceRestore = false) {{
         var q = document.getElementById('dir_q').value.trim();
         
-        if (q === lastQ && currentCat === lastCat && currentMode === lastMode && dirOffset === lastOffset) {{ return; }}
+        // Skip redundant requests unless forced by session restore
+        if (!forceRestore && q === lastQ && currentCat === lastCat && currentMode === lastMode && dirOffset === lastOffset) {{ return; }}
         
         lastQ = q; lastCat = currentCat; lastMode = currentMode; lastOffset = dirOffset;
-        var grid = document.getElementById('dir_grid_container');
         
+        // 💾 Save current state so we can return exactly here later
+        sessionStorage.setItem('ff_dir_state', '1');
+        sessionStorage.setItem('ff_dir_q', q);
+        sessionStorage.setItem('ff_dir_cat', currentCat);
+        sessionStorage.setItem('ff_dir_mode', currentMode);
+        sessionStorage.setItem('ff_dir_off', dirOffset);
+        sessionStorage.setItem('ff_dir_page', dirPage);
+
+        var grid = document.getElementById('dir_grid_container');
         grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--muted); font-weight:700;">🔄 Filtering Directory...</div>';
+        
         try {{
             var res = await fetch('/api/directory/search?q=' + encodeURIComponent(q) + '&cat=' + currentCat + '&mode=' + currentMode + '&offset=' + dirOffset);
             if (!res.ok) throw new Error("HTTP " + res.status);
@@ -214,7 +239,6 @@ async def api_directory_search(req):
             c = a.get("category", "actor")
             i = "🎭" if c == "actor" else "📱" if c == "app" else "🌐"
             v = int(a.get("photo_updated_at") or a.get("created_at") or 0)
-            # ✅ Inline style removed from img and act-poster class added here too
             html_out += f'''<div class="act-card" onclick="window.location.href=\'/actor/{str(a["_id"])}\'"><div style="position:relative; padding-top:135%; background:var(--bg3); overflow:hidden;"><img src="/api/actor/photo?id={str(a["_id"])}&v={v}" class="act-poster" loading="lazy"><div style="position:absolute; top:8px; left:8px; background:rgba(0,0,0,0.8); border:1px solid rgba(255,255,255,0.1); color:#fff; font-size:9px; padding:4px 8px; border-radius:4px; font-weight:800; backdrop-filter:blur(4px); z-index:2;">{i} {c.capitalize()}</div></div><div style="padding:10px; text-align:center;"><div style="font-size:13px; font-weight:800; color:var(--text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">{html.escape(a.get("name", ""))}</div></div></div>'''
             
     return web.json_response({"html": html_out, "has_next": has_next})
